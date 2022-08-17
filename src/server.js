@@ -20,14 +20,45 @@ function onSocketClose(){
     console.log("Disconnected from the Browser X");
 }
 
-wsServer.on("connection", socket => {
-    socket.onAny((event) => {
+function publicRooms(){
+    const {sockets:{adapter:{rooms, sids}}} = wsServer;
+    const publicRooms = [];
+    rooms.forEach((_,key) => {
+        if(sids.get(key) === undefined){
+            publicRooms.push(key)
+        }
     })
+    return publicRooms;    
+}
+
+wsServer.on("connection", socket => {
+    socket["nickname"] = "Anon"
+    socket.onAny((event) => {
+        console.log(`Socket Event: ${event}`);
+        console.log(wsServer.sockets.adapter);
+    });
     socket.on("enter_room", (roomName, done) => {
         socket.join(roomName);
         done()
-       socket.to(roomName).emit("welcome")
+       socket.to(roomName).emit("welcome", socket.nickname)
+       wsServer.sockets.emit("room_change",publicRooms())
     })
+
+    socket.on("disconnecting", () => {
+        socket.rooms.forEach(room => socket.to(room).emit("bye", socket.nickname))
+    })
+    socket.on("disconnect", () => {
+        wsServer.sockets.emit("room_change",publicRooms())
+    })
+
+    socket.on("new_message", (msg, room, done) => {
+        socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`)
+        done()
+    })
+    socket.on("nickname", (nickname) => {
+        socket["nickname"] = nickname
+    })
+ 
 })
 // const sockets = [];
 
